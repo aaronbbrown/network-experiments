@@ -34,6 +34,38 @@ Largely based on tutorial at http://xmodulo.com/centos-bgp-router-quagga.html
 
 ```
 
+# AS100
+
+## r1 (router)
+
+* announces route for AS100 (192.168.10.0/24) to `r2`
+
+```
+root@r1:~# vtysh -c "show ip bgp "
+BGP table version is 0, local router ID is 192.168.50.10
+Status codes: s suppressed, d damped, h history, * valid, > best, = multipath,
+              i internal, r RIB-failure, S Stale, R Removed
+Origin codes: i - IGP, e - EGP, ? - incomplete
+
+   Network          Next Hop            Metric LocPrf Weight Path
+*> 192.168.10.0     0.0.0.0                  0         32768 i
+*> 192.168.20.0     192.168.50.20            0             0 200 i
+
+Total number of prefixes 2
+root@r1:~# vtysh -c "show ip bgp summary"
+BGP router identifier 192.168.50.10, local AS number 100
+RIB entries 3, using 336 bytes of memory
+Peers 1, using 4568 bytes of memory
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+192.168.50.20   4   200      12      14        0    0    0 00:10:04        1
+
+Total number of neighbors 1
+```
+
+
+## s1 (server on 192.168.10.0/24 net)
+
 ```
 host$ vagrant up
 ...
@@ -54,6 +86,36 @@ traceroute to 192.168.20.100 (192.168.20.100), 30 hops max, 60 byte packets
 ```
 
 
+# AS200
+
+## r2 (router)
+
+* announces route for AS100 (192.168.20.0/24) to `r1` over 192.168.50.0/24 network
+
+```
+root@r2:~# vtysh -c "show ip bgp "
+BGP table version is 0, local router ID is 192.168.50.20
+Status codes: s suppressed, d damped, h history, * valid, > best, = multipath,
+              i internal, r RIB-failure, S Stale, R Removed
+Origin codes: i - IGP, e - EGP, ? - incomplete
+
+   Network          Next Hop            Metric LocPrf Weight Path
+*> 192.168.10.0     192.168.50.10            0             0 100 i
+*> 192.168.20.0     0.0.0.0                  0         32768 i
+
+Total number of prefixes 2
+root@r2:~# vtysh -c "show ip bgp summary"
+BGP router identifier 192.168.50.20, local AS number 200
+RIB entries 3, using 336 bytes of memory
+Peers 1, using 4568 bytes of memory
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+192.168.50.10   4   100      15      16        0    0    0 00:12:02        1
+
+Total number of neighbors 1
+```
+
+## s2 (server on 192.168.20.0/24 net)
 ```
 host$ vagrant ssh s2
 
