@@ -1,5 +1,6 @@
 This vagrant project brings up a 2 networks connected via BGP with a single server on each network.
 
+Largely based on tutorial at http://xmodulo.com/centos-bgp-router-quagga.html
 
 ```
 +----------------------------+                                   +----------------------------+
