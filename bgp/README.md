@@ -132,3 +132,25 @@ traceroute to 192.168.10.100 (192.168.10.100), 30 hops max, 60 byte packets
  3  192.168.10.100 (192.168.10.100)  0.555 ms  0.500 ms  0.485 ms
 ```
 
+# Verification
+
+To make sure there isn't some non-BGP route occurring
+
+```
+vagrant@r1:~$ sudo systemctl stop quagga
+vagrant@r1:~$ ping 192.168.20.100 -c1
+PING 192.168.20.100 (192.168.20.100) 56(84) bytes of data.
+
+--- 192.168.20.100 ping statistics ---
+1 packets transmitted, 0 received, 100% packet loss, time 0ms
+
+vagrant@r1:~$ sudo systemctl start quagga
+
+vagrant@r1:~$ ping 192.168.20.100 -c1
+PING 192.168.20.100 (192.168.20.100) 56(84) bytes of data.
+64 bytes from 192.168.20.100: icmp_seq=1 ttl=63 time=0.546 ms
+
+--- 192.168.20.100 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.546/0.546/0.546/0.000 ms
+```
