@@ -1,0 +1,77 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+ROUTER_CMDS=<<SHELL
+  set -x
+
+  sysctl -w net.ipv4.ip_forward=1
+  apt-get install -qy quagga
+
+  cp /vagrant/$(hostname -s)/zebra.conf /etc/quagga/zebra.conf
+  cp /vagrant/$(hostname -s)/bgpd.conf /etc/quagga/bgpd.conf
+
+  sed -i -e 's/zebra=no/zebra=yes/' /etc/quagga/daemons
+  sed -i -e 's/bgpd=no/bgpd=yes/' /etc/quagga/daemons
+
+  chown -R quagga:quaggavty /etc/quagga
+  chmod -v 777 /etc/quagga
+  chmod -Rv 666 /etc/quagga/*
+  systemctl restart quagga
+  umask=022 echo "export VTYSH_PAGER=more" > /etc/profile.d/vtysh_pager.sh
+SHELL
+
+routers = [
+  { name: 'r1',
+    wan: { ip: '192.168.50.10', netmask: '255.255.255.0' },
+    lan: { ip: '192.168.10.2',  netmask: '255.255.255.0' } },
+  { name: 'r2',
+    wan: { ip: '192.168.50.20', netmask: '255.255.255.0' },
+    lan: { ip: '192.168.20.2',  netmask: '255.255.255.0' } },
+  { name: 'r3',
+    wan: { ip: '192.168.20.3',  netmask: '255.255.255.0' },
+    lan: { ip: '192.168.30.2',  netmask: '255.255.255.0' } },
+]
+
+servers = [
+  { name: 's1',
+    ip: '192.168.10.100', netmask: '255.255.255.0', gateway: '192.168.10.2' },
+  { name: 's2',
+    ip: '192.168.20.100', netmask: '255.255.255.0', gateway: '192.168.20.2' },
+  { name: 's3',
+    ip: '192.168.30.100', netmask: '255.255.255.0', gateway: '192.168.30.2' }
+]
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/jessie64"
+  config.vm.provision "shell", inline: "apt-get update && apt-get install -qy tcpdump"
+
+  routers.each do |router|
+    config.vm.define router[:name] do |c|
+      c.vm.hostname = router[:name]
+      # WAN eth1
+      c.vm.network "private_network", ip: router[:wan][:ip],
+                                      netmask: router[:wan][:netmask]
+      # LAN eth2
+      c.vm.network "private_network", ip: router[:lan][:ip],
+                                      netmask: router[:lan][:netmask]
+
+      c.vm.provision "shell", inline: ROUTER_CMDS
+    end
+  end
+
+  servers.each do |server|
+    # servers
+    config.vm.define server[:name] do |c|
+      c.vm.hostname = server[:name]
+      # LAN
+      c.vm.network "private_network", ip: server[:ip],
+                                      netmask: server[:netmask],
+                                      gateway: server[:gateway]
+
+      # static route for all interal networks because Virtualbox configures its
+      # own eth0 with the default gateway
+      c.vm.provision "shell",
+        inline: "ip route add 192.168.0.0/16 via #{server[:gateway]} dev eth1 || true"
+    end
+  end
+end
