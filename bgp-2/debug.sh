@@ -14,8 +14,7 @@ if [[ "$host" =~ ^r ]]; then
 fi
 
 for ipaddr in $IPADDRS; do
-#  result="$(ping -c1 "$ipaddr" | awk -F, '/packet loss/ {print $3}')"
-#  echo "$host -> $ipaddr: $result"
-  traceroute "$ipaddr"
+  result="$(ping -c1 "$ipaddr" | awk -F, '/packet loss/ {print $3}')"
+  echo "$host -> $ipaddr: $result"
 done
 
