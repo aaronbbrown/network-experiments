@@ -1,0 +1,78 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+quagga_provisioner = <<SHELL
+  set -x
+
+  apt-get install -qy quagga
+
+  cp /vagrant/$(hostname -s)/zebra.conf /etc/quagga/zebra.conf
+  cp /vagrant/$(hostname -s)/bgpd.conf /etc/quagga/bgpd.conf
+
+  sed -i -e 's/zebra=no/zebra=yes/' /etc/quagga/daemons
+  sed -i -e 's/bgpd=no/bgpd=yes/' /etc/quagga/daemons
+
+  chown -R quagga:quaggavty /etc/quagga
+  chmod -v 777 /etc/quagga
+  chmod -Rv 666 /etc/quagga/*
+  systemctl restart quagga
+  umask=022 echo "export VTYSH_PAGER=more" > /etc/profile.d/vtysh_pager.sh
+SHELL
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/jessie64"
+  config.vm.provision "shell", inline: "apt-get update"
+
+  # client
+  config.vm.define "c1" do |c|
+    c.vm.hostname = "c1"
+    # WAN
+    c.vm.network "private_network", ip: "192.168.50.100",
+                                    netmask: "255.255.255.0",
+                                    gateway: "192.168.50.2"
+
+    c.vm.provision "shell",
+      inline: "ip route add 192.168.0.0/16 via 192.168.50.2 dev eth1 || true"
+  end
+
+  # router
+  config.vm.define "r1" do |c|
+    c.vm.hostname = "r1"
+    # WAN
+    c.vm.network "private_network", ip: "192.168.50.2",
+                                    netmask: "255.255.255.0"
+    # LAN (use .2 because Vagrant complains about .1, which is routable from eth0)
+    c.vm.network "private_network", virtualbox__intnet: "s1",
+                                    ip: "192.168.10.2",
+                                    netmask: "255.255.255.0"
+
+    c.vm.network "private_network", virtualbox__intnet: "s2",
+                                    ip: "192.168.20.2",
+                                    netmask: "255.255.255.0"
+
+    c.vm.provision "shell", inline: "sysctl -w net.ipv4.ip_forward=1"
+    c.vm.provision "shell", inline: quagga_provisioner
+  end
+
+  # servers
+  [1,2].each do |i|
+    config.vm.define "s#{i}" do |c|
+      c.vm.hostname ="s#{i}"
+      # LAN
+      c.vm.network "private_network", virtualbox__intnet: "s#{i}",
+                                      ip: "192.168.#{i}0.100",
+                                      netmask: "255.255.255.0",
+                                      gateway: "192.168.#{i}0.2"
+
+      c.vm.provision "shell", inline: quagga_provisioner
+      # static route for all interal networks because Virtualbox configures its
+      # own eth0 with the default gateway
+      c.vm.provision "shell",
+        inline: <<SHELL
+set -x
+ifconfig lo:0 192.168.40.10 netmask 255.255.255.255
+ip route add 192.168.0.0/16 via 192.168.#{i}0.2 dev eth1 || true
+SHELL
+    end
+  end
+end
